@@ -2,16 +2,33 @@ package cli
 
 import (
 	"errors"
-	"fmt"
+	"io"
 	"log"
 	"os"
-	"strings"
+
+	"github.com/hcwtam/transfer/internal/server"
 )
 
-type cli struct {
+const BUFFER_SIZE = 1024
+
+func Run() {
+	input, err := getArgs()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	command := input[0]
+
+	switch command {
+	case "send":
+		send(input[1:])
+	default:
+		log.Fatal("argument provided is invalid")
+	}
 }
 
-func (c *cli) getArgs() ([]string, error) {
+func getArgs() ([]string, error) {
 	args := os.Args
 	if len(args) == 1 {
 		return nil, errors.New("you must provide arguments")
@@ -20,14 +37,28 @@ func (c *cli) getArgs() ([]string, error) {
 	return args[1:], nil
 }
 
-func Run() {
-	cli := cli{}
-
-	input, err := cli.getArgs()
-
-	if err != nil {
-		log.Fatal(err)
+func send(args []string) {
+	if len(args) == 0 {
+		log.Fatal("you must provide at least one file")
 	}
 
-	fmt.Println(strings.Join(input, " "))
+	conn := server.Connect()
+
+	for _, path := range args {
+		// read file
+		file, err := os.Open(path)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer file.Close()
+
+		_, err = io.Copy(conn, file)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer conn.Close()
+	}
 }
